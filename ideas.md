@@ -1,0 +1,2 @@
+- More gold for killing creeps in a certain area or in a certain way?
+- Towers that can miss?

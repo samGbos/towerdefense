@@ -1,0 +1,7 @@
+{
+  "sheep": {
+    "damage": 1,
+    "health": 10,
+    "speed": 50
+  }
+}
