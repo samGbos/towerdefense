@@ -1,0 +1,14 @@
+{
+  "basic": {
+    "damage": 1,
+    "wait": 0.5,
+    "bullet_speed": 100,
+    "cost": 100
+  },
+  "freeze": {
+    "damage": 1,
+    "wait": 0.5,
+    "bullet_speed": 100,
+    "cost": 100
+  }
+}

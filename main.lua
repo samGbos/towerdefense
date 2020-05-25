@@ -5,6 +5,8 @@ local windowWidth, windowHeight = love.window.getDesktopDimensions()
 print(string.format("ww %s, wh %s", windowWidth, windowHeight))
 push:setupScreen(gameWidth, gameHeight, windowWidth, windowHeight, { fullscreen = true })
 
+local fps = 0;
+
 local function read_file(path)
     local file = io.open(path, "rb") -- r read mode and b binary mode
     local content = file:read "*a" -- *a or *all reads the whole file
@@ -22,15 +24,20 @@ function love.load(arg)
     local map_raw = read_file("maps/map.json")
     local map = lunajson.decode(map_raw)
 
-    local creeps_raw = read_file("creeps.json")
-    creep_types = lunajson.decode(creeps_raw)
-    cur_creeps = {}
-
     waves = map.waves
     cur_wave = 1
     is_wave_ongoing = false
 
+
+    local creeps_raw = read_file("creeps.json")
+    creep_types = lunajson.decode(creeps_raw)
+    cur_creeps = {}
     path = map.path
+    gold = map.starting_gold
+    available_towers = map.towers
+
+    local towers_raw = read_file("towers.json")
+    tower_types = lunajson.decode(towers_raw)
 
 
     fired_shots = {}
@@ -75,6 +82,8 @@ function love.mousepressed(x, y, button, istouch, presses)
 end
 
 function love.update(dt)
+
+    fps = 1 / dt;
 
     local remCreep = {}
     local remShot = {}
@@ -153,16 +162,10 @@ end
 
 function love.draw()
     push:start()
-    screenWidth = love.graphics.getWidth()
-    screenHeight = love.graphics.getHeight()
-    print(screenWidth)
-    print(screenHeight)
+
     -- let's draw a background
     love.graphics.setColor(255, 255, 255, 255)
     love.graphics.rectangle("fill", 0, 0, 1280, 800)
-
-    love.graphics.setColor(0, 0, 255, 255)
-    love.graphics.circle("fill", 1280, 800, 16)
 
     -- let's draw our heros shots
     --    love.graphics.setColor(255, 255, 255, 255)
@@ -175,7 +178,39 @@ function love.draw()
     for i, creep in ipairs(cur_creeps) do
         love.graphics.rectangle("fill", creep.x, creep.y, 32, 32)
     end
+
+    drawControlPanel()
+    drawFPS()
+
     push:finish()
+end
+
+function drawControlPanel()
+    love.graphics.setColor(127, 127, 0, 255)
+    local panel_width = 240;
+    local panel_start = gameWidth - panel_width;
+    love.graphics.rectangle("fill", panel_start, 0, 240, 800)
+
+    --  draw gold
+    love.graphics.setColor(0, 0, 0, 255)
+    love.graphics.print(string.format("Gold: %.1f", gold), panel_start+8, 0)
+
+    -- Draw available towers
+    local towers_start_y = 120;
+    for i, tower in ipairs(available_towers) do
+        local tower_center_x = panel_start + (panel_width / 2)
+        local tower_center_y = towers_start_y + (i - 1) * panel_width + panel_width/2
+        love.graphics.setColor(0, 127, 0, 255)
+        love.graphics.circle("fill", tower_center_x, tower_center_y, panel_width/2)
+        love.graphics.setColor(0, 0, 0, 255)
+        love.graphics.print("hello", tower_center_x, tower_center_y)
+        love.graphics.print(tower, tower_center_x, tower_center_y+50)
+    end
+end
+
+function drawFPS()
+    love.graphics.setColor(0, 0, 0, 255)
+    love.graphics.print(string.format("FPS: %.1f", fps), 0, 0)
 end
 
 function shoot(x, y)

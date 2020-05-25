@@ -1,9 +1,4 @@
 {
-  "waves": [
-    {
-      "creeps": ["sheep", "sheep", "sheep"]
-    }
-  ],
   "path": [
     {
       "x": 0,
@@ -20,6 +15,13 @@
     {
       "x": 640,
       "y": 160
+    }
+  ],
+  "starting_gold": 500,
+  "towers": ["basic", "freeze"],
+  "waves": [
+    {
+      "creeps": ["sheep", "sheep", "sheep"]
     }
   ]
 }
