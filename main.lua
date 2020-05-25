@@ -2,6 +2,7 @@ io.stdout:setvbuf("no")
 local push = require "push"
 local gameWidth, gameHeight = 1280, 800 --fixed game resolution
 local windowWidth, windowHeight = love.window.getDesktopDimensions()
+local grid_size = 40
 print(string.format("ww %s, wh %s", windowWidth, windowHeight))
 push:setupScreen(gameWidth, gameHeight, windowWidth, windowHeight, { fullscreen = true })
 
@@ -34,11 +35,21 @@ function love.load(arg)
     cur_creeps = {}
     path = map.path
     gold = map.starting_gold
-    available_towers = map.towers
+
 
     local towers_raw = read_file("towers.json")
-    tower_types = lunajson.decode(towers_raw)
+    local tower_types = lunajson.decode(towers_raw)
 
+    available_towers = {}
+    for i, tower_name in ipairs(map.towers) do
+        local tower = {}
+        tower.name = tower_name
+        tower.cost = tower_types[tower_name].cost
+        table.insert(available_towers, tower)
+    end
+    positionTowers()
+
+    tower_to_place = nil
 
     fired_shots = {}
     --    success = love.window.setFullscreen(true)
@@ -78,7 +89,21 @@ function start_next_wave()
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
+    local game_x, game_y = push:toGame(x, y)
+    -- Check for collision with available towers
+    for i, tower in ipairs(available_towers) do
+        if check_collision_circle(game_x, game_y, tower.x, tower.y, tower.radius) then
+            select_tower(tower)
+        end
+    end
     --    shoot(x, y)
+end
+
+function select_tower(tower)
+    if tower.cost < gold then
+        print("Select tower")
+        tower_to_place = tower
+    end
 end
 
 function love.update(dt)
@@ -164,53 +189,106 @@ function love.draw()
     push:start()
 
     -- let's draw a background
-    love.graphics.setColor(255, 255, 255, 255)
-    love.graphics.rectangle("fill", 0, 0, 1280, 800)
+    love.graphics.setColor(0.28, 0.77, 0.15)
+    love.graphics.rectangle("fill", 0, 0, gameWidth, gameHeight)
+
+    draw_grid()
+
+    draw_path()
 
     -- let's draw our heros shots
-    --    love.graphics.setColor(255, 255, 255, 255)
+    --    love.graphics.setColor(1,1,1)
     --    for i, v in ipairs(hero.shots) do
     --        love.graphics.circle("fill", v.x, v.y, 4)
     --    end
 
     -- let's draw our creeps
-    love.graphics.setColor(0, 255, 255, 255)
+    love.graphics.setColor(0, 1, 1)
     for i, creep in ipairs(cur_creeps) do
-        love.graphics.rectangle("fill", creep.x, creep.y, 32, 32)
+        love.graphics.rectangle("fill", creep.x, creep.y, 20, 20)
     end
 
     drawControlPanel()
     drawFPS()
+    draw_tower_to_place()
 
     push:finish()
 end
 
-function drawControlPanel()
-    love.graphics.setColor(127, 127, 0, 255)
-    local panel_width = 240;
-    local panel_start = gameWidth - panel_width;
-    love.graphics.rectangle("fill", panel_start, 0, 240, 800)
+function draw_grid()
+    love.graphics.setColor(1, 1, 1)
 
-    --  draw gold
-    love.graphics.setColor(0, 0, 0, 255)
-    love.graphics.print(string.format("Gold: %.1f", gold), panel_start+8, 0)
+    -- Draw vertical lines
+    for i = 0, gameWidth / grid_size do
+        love.graphics.line(i * grid_size, 0, i * grid_size, gameHeight)
+    end
 
-    -- Draw available towers
+    -- Draw horizontal lines
+    for i = 0, gameHeight / grid_size do
+        love.graphics.line(0, i * grid_size, gameWidth, i * grid_size)
+    end
+end
+
+function draw_path()
+    love.graphics.setColor(0.8, 0.6, 0.15)
+    for i = 1, table.getn(path) - 1 do
+        local p1 = path[i]
+        local p2 = path[i+1]
+        love.graphics.rectangle("fill", p1.x, p1.y, math.max(p2.x - p1.x, grid_size), math.max(p2.y - p1.y, grid_size))
+    end
+end
+
+local panel_width = 120;
+local panel_start = gameWidth - panel_width;
+
+function positionTowers()
     local towers_start_y = 120;
     for i, tower in ipairs(available_towers) do
-        local tower_center_x = panel_start + (panel_width / 2)
-        local tower_center_y = towers_start_y + (i - 1) * panel_width + panel_width/2
-        love.graphics.setColor(0, 127, 0, 255)
-        love.graphics.circle("fill", tower_center_x, tower_center_y, panel_width/2)
-        love.graphics.setColor(0, 0, 0, 255)
-        love.graphics.print("hello", tower_center_x, tower_center_y)
-        love.graphics.print(tower, tower_center_x, tower_center_y+50)
+        local radius = 24
+        tower.x = panel_start + radius
+        tower.y = towers_start_y + (i - 1) * panel_width + radius
+        tower.radius = radius
+        tower.color = { 0, 127, 0, 255 }
+    end
+end
+
+function drawControlPanel()
+    love.graphics.setColor(127, 127, 0)
+
+    love.graphics.rectangle("fill", panel_start, 0, panel_width, gameHeight)
+
+    --  draw gold
+    love.graphics.setColor(0, 0, 0)
+    love.graphics.print(string.format("Gold: %.1f", gold), panel_start + 8, 0)
+
+    -- Draw available towers
+
+    for i, tower in ipairs(available_towers) do
+        love.graphics.setColor(tower.color)
+        love.graphics.circle("fill", tower.x, tower.y, tower.radius)
+        love.graphics.setColor(0, 0, 0)
+        love.graphics.print("hi", tower.x, tower.y)
+        love.graphics.print(tower, tower.x, tower.y)
     end
 end
 
 function drawFPS()
-    love.graphics.setColor(0, 0, 0, 255)
+    love.graphics.setColor(0, 0, 0)
     love.graphics.print(string.format("FPS: %.1f", fps), 0, 0)
+end
+
+function draw_tower_to_place()
+    print("Draw selected tower")
+
+    if tower_to_place ~= nil then
+        print("Draw selected tower rellay")
+        love.graphics.setColor(tower_to_place.color)
+        local x, y = love.mouse.getPosition()
+        local game_x, game_y = push:toGame(x, y)
+        if game_x ~= nil and game_y ~= nil then
+            love.graphics.circle("fill", game_x, game_y, tower_to_place.radius)
+        end
+    end
 end
 
 function shoot(x, y)
@@ -232,4 +310,10 @@ end
 function CheckCollision(ax1, ay1, aw, ah, bx1, by1, bw, bh)
     local ax2, ay2, bx2, by2 = ax1 + aw, ay1 + ah, bx1 + bw, by1 + bh
     return ax1 < bx2 and ax2 > bx1 and ay1 < by2 and ay2 > by1
+end
+
+function check_collision_circle(x, y, circleX, circleY, circleRadius)
+    print(string.format("%s + %s", (x), circleX))
+    print(string.format("%s + %s < %s", (x - circleX) ^ 2, (y - circleY) ^ 2, circleRadius ^ 2))
+    return (x - circleX) ^ 2 + (y - circleY) ^ 2 < circleRadius ^ 2
 end
