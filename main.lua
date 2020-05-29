@@ -1,6 +1,10 @@
 io.stdout:setvbuf("no")
 local push = require "push"
 local gameWidth, gameHeight = 1280, 800 --fixed game resolution
+local main_panel_width = 1160
+local ctl_panel_width = 120;
+local ctl_panel_start = main_panel_width;
+local tower_radius = 20
 local windowWidth, windowHeight = love.window.getDesktopDimensions()
 local grid_size = 40
 print(string.format("ww %s, wh %s", windowWidth, windowHeight))
@@ -24,6 +28,9 @@ function love.load(arg)
 
     local map_raw = read_file("maps/map.json")
     local map = lunajson.decode(map_raw)
+
+    sounds = {}
+    sounds.cannot_place_tower = love.audio.newSource("sounds/static/no_can_do_boss.mp3", "static")
 
     waves = map.waves
     cur_wave = 1
@@ -49,6 +56,7 @@ function love.load(arg)
     end
     positionTowers()
 
+    placed_towers = {}
     tower_to_place = nil
 
     fired_shots = {}
@@ -90,13 +98,40 @@ end
 
 function love.mousepressed(x, y, button, istouch, presses)
     local game_x, game_y = push:toGame(x, y)
+    -- If we already have a tower to place, try to place it
+    if tower_to_place ~= nil then
+        if tower_to_place.cost < gold and is_valid_tower_location(game_x, game_y) then
+
+        else
+
+            love.audio.stop(sounds.cannot_place_tower)
+            love.audio.play(sounds.cannot_place_tower)
+        end
+    end
+
     -- Check for collision with available towers
     for i, tower in ipairs(available_towers) do
-        if check_collision_circle(game_x, game_y, tower.x, tower.y, tower.radius) then
+        if check_collision_point_circle(game_x, game_y, tower.x, tower.y, tower_radius) then
             select_tower(tower)
         end
     end
     --    shoot(x, y)
+end
+
+function is_valid_tower_location(x, y)
+    if x < tower_radius or y < tower_radius or y > (gameHeight - tower_radius) or x > (main_panel_width - tower_radius) then
+        return false
+    end
+
+
+    for i, tower in ipairs(placed_towers) do
+        if check_collision_circle_circle(x, y, tower_radius, tower.x, tower.y, tower_radius) then
+            return false
+        end
+    end
+
+    -- Todo check not colliding with path
+    return true
 end
 
 function select_tower(tower)
@@ -233,21 +268,16 @@ function draw_path()
     love.graphics.setColor(0.8, 0.6, 0.15)
     for i = 1, table.getn(path) - 1 do
         local p1 = path[i]
-        local p2 = path[i+1]
+        local p2 = path[i + 1]
         love.graphics.rectangle("fill", p1.x, p1.y, math.max(p2.x - p1.x, grid_size), math.max(p2.y - p1.y, grid_size))
     end
 end
 
-local panel_width = 120;
-local panel_start = gameWidth - panel_width;
-
 function positionTowers()
     local towers_start_y = 120;
     for i, tower in ipairs(available_towers) do
-        local radius = 24
-        tower.x = panel_start + radius
-        tower.y = towers_start_y + (i - 1) * panel_width + radius
-        tower.radius = radius
+        tower.x = ctl_panel_start + tower_radius
+        tower.y = towers_start_y + (i - 1) * ctl_panel_width + tower_radius
         tower.color = { 0, 127, 0, 255 }
     end
 end
@@ -255,17 +285,17 @@ end
 function drawControlPanel()
     love.graphics.setColor(127, 127, 0)
 
-    love.graphics.rectangle("fill", panel_start, 0, panel_width, gameHeight)
+    love.graphics.rectangle("fill", ctl_panel_start, 0, ctl_panel_width, gameHeight)
 
     --  draw gold
     love.graphics.setColor(0, 0, 0)
-    love.graphics.print(string.format("Gold: %.1f", gold), panel_start + 8, 0)
+    love.graphics.print(string.format("Gold: %.1f", gold), ctl_panel_start + 8, 0)
 
     -- Draw available towers
 
     for i, tower in ipairs(available_towers) do
         love.graphics.setColor(tower.color)
-        love.graphics.circle("fill", tower.x, tower.y, tower.radius)
+        love.graphics.circle("fill", tower.x, tower.y, tower_radius)
         love.graphics.setColor(0, 0, 0)
         love.graphics.print("hi", tower.x, tower.y)
         love.graphics.print(tower, tower.x, tower.y)
@@ -282,12 +312,18 @@ function draw_tower_to_place()
 
     if tower_to_place ~= nil then
         print("Draw selected tower rellay")
-        love.graphics.setColor(tower_to_place.color)
         local x, y = love.mouse.getPosition()
         local game_x, game_y = push:toGame(x, y)
         if game_x ~= nil and game_y ~= nil then
-            love.graphics.circle("fill", game_x, game_y, tower_to_place.radius)
+            if is_valid_tower_location(game_x, game_y) then
+                love.graphics.setColor(tower_to_place.color)
+                love.graphics.circle("fill", game_x, game_y, tower_radius)
+            else
+                love.graphics.setColor(0.9, 0.1, 0.1)
+                love.graphics.circle("fill", game_x, game_y, tower_radius)
+            end
         end
+
     end
 end
 
@@ -312,7 +348,12 @@ function CheckCollision(ax1, ay1, aw, ah, bx1, by1, bw, bh)
     return ax1 < bx2 and ax2 > bx1 and ay1 < by2 and ay2 > by1
 end
 
-function check_collision_circle(x, y, circleX, circleY, circleRadius)
+-- Return true if two circles overlap
+function check_collision_circle_circle(x1, y1, r1, x2, y2, r2)
+    return (x2 - x1) ^ 2 + (y2 - y1) ^ 2 < (r1 + r2) ^ 2
+end
+
+function check_collision_point_circle(x, y, circleX, circleY, circleRadius)
     print(string.format("%s + %s", (x), circleX))
     print(string.format("%s + %s < %s", (x - circleX) ^ 2, (y - circleY) ^ 2, circleRadius ^ 2))
     return (x - circleX) ^ 2 + (y - circleY) ^ 2 < circleRadius ^ 2
